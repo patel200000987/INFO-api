@@ -5,15 +5,15 @@ from fastapi import FastAPI, Query, Response
 import gradio as gr
 
 # ── Config ──────────────────────────────────────────────────────────────
-app = FastAPI(title="Indian Database Search API")
+app = FastAPI(title="Telegram Search API")
 
 # Hugging Face Datasets Server API (Proxy)
 HF_API = "https://datasets-server.huggingface.co/rows"
-DATASET = "sauravsingh2111/Inddatainonefile"
+DATASET = "Kzr0xx/telegram"
 
-# ── Search Function (Returns ALL fields) ──────────────────────────────
+# ── Search Function ────────────────────────────────────────────────────
 def search_hf(q: str, limit: int = 10):
-    """Search and return ALL raw data from dataset"""
+    """Search in username and user_id fields using HF API"""
     q = q.strip().lower()
     if not q:
         return {"query": q, "count": 0, "results": []}
@@ -22,7 +22,7 @@ def search_hf(q: str, limit: int = 10):
         results = []
         offset = 0
         
-        # Scan up to 1000 rows
+        # Scan up to 1000 rows (adjustable)
         while len(results) < limit and offset < 1000:
             resp = httpx.get(
                 HF_API,
@@ -43,17 +43,20 @@ def search_hf(q: str, limit: int = 10):
             if not rows:
                 break
                 
-            # Filter rows where q matches name, mobile, or email
+            # Filter rows where q matches username or user_id
             for row in rows:
                 row_data = row.get("row", {})
-                # Check in name, mobile, email only (for search)
-                name = (row_data.get("name") or "").lower()
-                mobile = (row_data.get("mobile") or "").lower()
-                email = (row_data.get("email") or "").lower()
+                # Check in username and user_id only
+                username = (row_data.get("username") or "").lower()
+                user_id = str(row_data.get("user_id") or "").lower()
                 
-                if q in name or q in mobile or q in email:
-                    # Return ALL fields (raw data)
-                    results.append(row_data)
+                if q in username or q in user_id:
+                    # Return only required fields
+                    filtered = {
+                        "tgusername": row_data.get("username", ""),
+                        "tgid": row_data.get("user_id", "")
+                    }
+                    results.append(filtered)
                     if len(results) >= limit:
                         break
             
@@ -73,11 +76,11 @@ def search_hf(q: str, limit: int = 10):
 # ── FastAPI Endpoints ──────────────────────────────────────────────────
 @app.get("/")
 def root():
-    # Only app, developer, channel — exactly as you want
+    # Sirf app, developer, channel
     return {
-        "app": "Indian Database Search API",
-        "developer": "@SOCIALBANNERR",
-        "channel": "@modxpatel"
+        "app": "Telegram Search API",
+        "developer": "╭━━[ 𓃵 𝐏𝐀𝐓𝐄𝐋 𓃵 ]━━╮💀",
+        "credit": "@SOCIALBANNERR"
     }
 
 @app.get("/health")
@@ -86,10 +89,12 @@ def health():
 
 @app.get("/search")
 async def search(
-    q: str = Query(..., description="Search query (name, mobile, or email)"),
+    q: str = Query(..., description="Search query (username or user_id)"),
     limit: int = Query(10, ge=1, le=100, description="Max results")
 ):
     data = search_hf(q, limit)
+    # Add "New Api By Patel" at the end
+    data["footer"] = "New Api By Patel"
     return Response(
         content=json.dumps(data, indent=2, default=str),
         media_type="application/json"
@@ -108,21 +113,20 @@ def search_ui(query, limit):
     out = f"🔍 **{query}** - {data['count']} results\n\n"
     for i, row in enumerate(data["results"], 1):
         out += f"**Result {i}:**\n"
-        for key, value in row.items():
-            if value:
-                out += f"  - **{key}:** {value}\n"
-        out += "\n"
+        out += f"  - **Username:** {row.get('tgusername', 'N/A')}\n"
+        out += f"  - **User ID:** {row.get('tgid', 'N/A')}\n\n"
+    out += "\n---\n**New Api By Patel**"
     return out
 
 demo = gr.Interface(
     fn=search_ui,
     inputs=[
-        gr.Textbox(label="🔍 Search", placeholder="Name, mobile, or email..."),
+        gr.Textbox(label="🔍 Search", placeholder="Username or User ID..."),
         gr.Slider(1, 50, value=10, step=1, label="Max Results")
     ],
     outputs=gr.Markdown(),
-    title="📡 Indian Database Search API",
-    description="Search **1.78 billion records** — All fields shown | Built by @SOCIALBANNERR"
+    title="📡 Telegram Search API",
+    description="Search **429 million records** — Username, User ID | Built by ╭━━[ 𓃵 𝐏𝐀𝐓𝐄𝐋 𓃵 ]━━╮💀"
 )
 
 app = gr.mount_gradio_app(app, demo, path="/")
