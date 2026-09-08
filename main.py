@@ -11,9 +11,9 @@ app = FastAPI(title="Indian Database Search API")
 HF_API = "https://datasets-server.huggingface.co/rows"
 DATASET = "sauravsingh2111/Inddatainonefile"
 
-# ── Search Function ────────────────────────────────────────────────────
+# ── Search Function (Returns ALL fields) ──────────────────────────────
 def search_hf(q: str, limit: int = 10):
-    """Search in name, mobile, email fields using HF API"""
+    """Search and return ALL raw data from dataset"""
     q = q.strip().lower()
     if not q:
         return {"query": q, "count": 0, "results": []}
@@ -22,7 +22,7 @@ def search_hf(q: str, limit: int = 10):
         results = []
         offset = 0
         
-        # Scan up to 1000 rows (adjustable)
+        # Scan up to 1000 rows
         while len(results) < limit and offset < 1000:
             resp = httpx.get(
                 HF_API,
@@ -46,19 +46,14 @@ def search_hf(q: str, limit: int = 10):
             # Filter rows where q matches name, mobile, or email
             for row in rows:
                 row_data = row.get("row", {})
-                # Check in name, mobile, email only
+                # Check in name, mobile, email only (for search)
                 name = (row_data.get("name") or "").lower()
                 mobile = (row_data.get("mobile") or "").lower()
                 email = (row_data.get("email") or "").lower()
                 
                 if q in name or q in mobile or q in email:
-                    # Return only required fields
-                    filtered = {
-                        "name": row_data.get("name", ""),
-                        "mobile": row_data.get("mobile", ""),
-                        "email": row_data.get("email", "")
-                    }
-                    results.append(filtered)
+                    # Return ALL fields (raw data)
+                    results.append(row_data)
                     if len(results) >= limit:
                         break
             
@@ -69,8 +64,8 @@ def search_hf(q: str, limit: int = 10):
         return {
             "query": q,
             "count": len(results),
-            "results": results[:limit],
-            "source": "HF Proxy"
+            "results": results[:limit]
+            # "source" removed — hidden
         }
     except Exception as e:
         return {"query": q, "count": 0, "results": [], "error": str(e)}
@@ -78,19 +73,16 @@ def search_hf(q: str, limit: int = 10):
 # ── FastAPI Endpoints ──────────────────────────────────────────────────
 @app.get("/")
 def root():
+    # Only app, developer, channel — exactly as you want
     return {
         "app": "Indian Database Search API",
         "developer": "@SOCIALBANNERR",
-        "channel": "@modxpatel",
-        "dataset": DATASET,
-        "method": "Hugging Face Datasets Server API",
-        "search_fields": ["name", "mobile", "email"],
-        "status": "active"
+        "channel": "@modxpatel"
     }
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "api": "HF Proxy", "developer": "@SOCIALBANNERR"}
+    return {"status": "ok"}
 
 @app.get("/search")
 async def search(
@@ -99,7 +91,7 @@ async def search(
 ):
     data = search_hf(q, limit)
     return Response(
-        content=json.dumps(data, indent=2),
+        content=json.dumps(data, indent=2, default=str),
         media_type="application/json"
     )
 
@@ -115,14 +107,11 @@ def search_ui(query, limit):
     
     out = f"🔍 **{query}** - {data['count']} results\n\n"
     for i, row in enumerate(data["results"], 1):
-        fields = []
-        if row.get("name"):
-            fields.append(f"Name: {row['name']}")
-        if row.get("mobile"):
-            fields.append(f"Mobile: {row['mobile']}")
-        if row.get("email"):
-            fields.append(f"Email: {row['email']}")
-        out += f"**{i}.** " + ", ".join(fields) + "\n\n"
+        out += f"**Result {i}:**\n"
+        for key, value in row.items():
+            if value:
+                out += f"  - **{key}:** {value}\n"
+        out += "\n"
     return out
 
 demo = gr.Interface(
@@ -133,7 +122,7 @@ demo = gr.Interface(
     ],
     outputs=gr.Markdown(),
     title="📡 Indian Database Search API",
-    description="Search **1.78 billion records** — Name, Mobile, Email | Built by @SOCIALBANNERR"
+    description="Search **1.78 billion records** — All fields shown | Built by @SOCIALBANNERR"
 )
 
 app = gr.mount_gradio_app(app, demo, path="/")
