@@ -11,9 +11,9 @@ app = FastAPI(title="Telegram Search API")
 HF_API = "https://datasets-server.huggingface.co/rows"
 DATASET = "Kzr0xx/telegram"
 
-# ── Search Function ────────────────────────────────────────────────────
+# ── Search Function (Returns ALL fields) ──────────────────────────────
 def search_hf(q: str, limit: int = 10):
-    """Search in username and user_id fields using HF API"""
+    """Search and return ALL raw data from dataset"""
     q = q.strip().lower()
     if not q:
         return {"query": q, "count": 0, "results": []}
@@ -22,7 +22,7 @@ def search_hf(q: str, limit: int = 10):
         results = []
         offset = 0
         
-        # Scan up to 1000 rows (adjustable)
+        # Scan up to 1000 rows
         while len(results) < limit and offset < 1000:
             resp = httpx.get(
                 HF_API,
@@ -46,17 +46,12 @@ def search_hf(q: str, limit: int = 10):
             # Filter rows where q matches username or user_id
             for row in rows:
                 row_data = row.get("row", {})
-                # Check in username and user_id only
                 username = (row_data.get("username") or "").lower()
                 user_id = str(row_data.get("user_id") or "").lower()
                 
                 if q in username or q in user_id:
-                    # Return only required fields
-                    filtered = {
-                        "tgusername": row_data.get("username", ""),
-                        "tgid": row_data.get("user_id", "")
-                    }
-                    results.append(filtered)
+                    # Return ALL fields (raw data)
+                    results.append(row_data)
                     if len(results) >= limit:
                         break
             
@@ -76,7 +71,6 @@ def search_hf(q: str, limit: int = 10):
 # ── FastAPI Endpoints ──────────────────────────────────────────────────
 @app.get("/")
 def root():
-    # Sirf app, developer, channel
     return {
         "app": "Telegram Search API",
         "developer": "╭━━[ 𓃵 𝐏𝐀𝐓𝐄𝐋 𓃵 ]━━╮💀",
@@ -113,8 +107,11 @@ def search_ui(query, limit):
     out = f"🔍 **{query}** - {data['count']} results\n\n"
     for i, row in enumerate(data["results"], 1):
         out += f"**Result {i}:**\n"
-        out += f"  - **Username:** {row.get('tgusername', 'N/A')}\n"
-        out += f"  - **User ID:** {row.get('tgid', 'N/A')}\n\n"
+        # Show all fields
+        for key, value in row.items():
+            if value:  # Only show non-empty fields
+                out += f"  - **{key}:** {value}\n"
+        out += "\n"
     out += "\n---\n**New Api By Patel**"
     return out
 
@@ -126,7 +123,7 @@ demo = gr.Interface(
     ],
     outputs=gr.Markdown(),
     title="📡 Telegram Search API",
-    description="Search **429 million records** — Username, User ID | Built by ╭━━[ 𓃵 𝐏𝐀𝐓𝐄𝐋 𓃵 ]━━╮💀"
+    description="Search **429 million records** — All fields shown | Built by ╭━━[ 𓃵 𝐏𝐀𝐓𝐄𝐋 𓃵 ]━━╮💀"
 )
 
 app = gr.mount_gradio_app(app, demo, path="/")
